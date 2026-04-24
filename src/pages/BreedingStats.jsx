@@ -8,9 +8,9 @@ import { differenceInDays } from 'date-fns';
 // allWeight/femaleWeight/maleWeight = 平均体重(kg)
 // months = 集計月数（12未満は途中経過）
 const DEFAULT_MARKET_AVGS = {
-  '2022': { all: 657319, female: 594413, male: 700441 },
-  '2023': { all: 558366, female: 490893, male: 605165 },
-  '2024': { all: 491239, female: 433093, male: 533199 },
+  '2022': { all: 657319, female: 594413, male: 700441, allWeight: 302, femaleWeight: 288, maleWeight: 312, months: 12 },
+  '2023': { all: 558366, female: 490893, male: 605165, allWeight: 298, femaleWeight: 284, maleWeight: 309, months: 12 },
+  '2024': { all: 491239, female: 433093, male: 533199, allWeight: 298, femaleWeight: 285, maleWeight: 307, months: 12 },
   '2025': { all: 632705, female: 565436, male: 683671, allWeight: 299, femaleWeight: 285, maleWeight: 310, months: 12 },
   '2026': { all: 826966, female: 771695, male: 867720, allWeight: 303, femaleWeight: 287, maleWeight: 311, months: 4 },
 };
@@ -48,7 +48,8 @@ export default function BreedingStats() {
       if (saved && typeof saved === 'object') {
         Object.entries(saved).forEach(([yr, v]) => {
           if (v && (v.all || v.female || v.male)) {
-            result[yr] = v;
+            // 価格のみ上書き（体重データはDEFAULTを維持）
+            result[yr] = { ...(DEFAULT_MARKET_AVGS[yr] || {}), ...result[yr], ...v };
           }
         });
       }
