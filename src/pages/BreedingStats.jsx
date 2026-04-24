@@ -795,45 +795,53 @@ export default function BreedingStats() {
                         <td style={{ padding: '9px 6px', textAlign: 'center', fontWeight: 600, color: '#1976D2' }}>{y.male.count}頭</td>
                       </tr>
                       <tr style={{ borderBottom: '1px solid #eee' }}>
-                        <td style={{ padding: '9px 6px', fontSize: 12 }}>自牧場 平均販売金額</td>
-                        <td style={{ padding: '9px 6px', textAlign: 'center', fontWeight: 600 }}>{fmtCost(y.all.avgCost)}</td>
-                        <td style={{ padding: '9px 6px', textAlign: 'center', fontWeight: 600, color: '#E91E63' }}>{fmtCost(y.female.avgCost)}</td>
-                        <td style={{ padding: '9px 6px', textAlign: 'center', fontWeight: 600, color: '#1976D2' }}>{fmtCost(y.male.avgCost)}</td>
+                        <td style={{ padding: '9px 6px', fontSize: 12 }}>自牧場 平均販売金額
+                          {salesDest === '子牛市場' && mkt.all && <span style={{ fontSize: 10, color: '#888' }}><br/>（カッコ内は市場比率）</span>}
+                        </td>
+                        <td style={{ padding: '9px 6px', textAlign: 'center', fontWeight: 600 }}>
+                          {fmtCost(y.all.avgCost)}
+                          {salesDest === '子牛市場' && mkt.all && y.all.avgCost && <><br/><span style={{ fontWeight: 700, color: pctColor(y.all.avgCost, mkt.all) }}>{pctStr(y.all.avgCost, mkt.all)}</span></>}
+                        </td>
+                        <td style={{ padding: '9px 6px', textAlign: 'center', fontWeight: 600, color: '#E91E63' }}>
+                          {fmtCost(y.female.avgCost)}
+                          {salesDest === '子牛市場' && mkt.female && y.female.avgCost && <><br/><span style={{ fontWeight: 700, color: pctColor(y.female.avgCost, mkt.female) }}>{pctStr(y.female.avgCost, mkt.female)}</span></>}
+                        </td>
+                        <td style={{ padding: '9px 6px', textAlign: 'center', fontWeight: 600, color: '#1976D2' }}>
+                          {fmtCost(y.male.avgCost)}
+                          {salesDest === '子牛市場' && mkt.male && y.male.avgCost && <><br/><span style={{ fontWeight: 700, color: pctColor(y.male.avgCost, mkt.male) }}>{pctStr(y.male.avgCost, mkt.male)}</span></>}
+                        </td>
                       </tr>
                       {salesDest === '子牛市場' && (
                         <tr style={{ borderBottom: '1px solid #eee', background: '#fafafa' }}>
-                          <td style={{ padding: '9px 6px', fontSize: 12 }}>豊肥子牛市場平均<br/><span style={{ fontSize: 10, color: '#888' }}>（カッコ内は自牧場比率）</span></td>
-                          <td style={{ padding: '9px 6px', textAlign: 'center' }}>
-                            {mkt.all ? <>{fmtCost(mkt.all)}<br/><span style={{ fontWeight: 700, color: pctColor(y.all.avgCost, mkt.all) }}>{pctStr(y.all.avgCost, mkt.all)}</span></> : '—'}
-                          </td>
-                          <td style={{ padding: '9px 6px', textAlign: 'center', color: '#E91E63' }}>
-                            {mkt.female ? <>{fmtCost(mkt.female)}<br/><span style={{ fontWeight: 700, color: pctColor(y.female.avgCost, mkt.female) }}>{pctStr(y.female.avgCost, mkt.female)}</span></> : '—'}
-                          </td>
-                          <td style={{ padding: '9px 6px', textAlign: 'center', color: '#1976D2' }}>
-                            {mkt.male ? <>{fmtCost(mkt.male)}<br/><span style={{ fontWeight: 700, color: pctColor(y.male.avgCost, mkt.male) }}>{pctStr(y.male.avgCost, mkt.male)}</span></> : '—'}
-                          </td>
+                          <td style={{ padding: '9px 6px', fontSize: 12 }}>豊肥子牛市場平均</td>
+                          <td style={{ padding: '9px 6px', textAlign: 'center' }}>{mkt.all ? fmtCost(mkt.all) : '—'}</td>
+                          <td style={{ padding: '9px 6px', textAlign: 'center', color: '#E91E63' }}>{mkt.female ? fmtCost(mkt.female) : '—'}</td>
+                          <td style={{ padding: '9px 6px', textAlign: 'center', color: '#1976D2' }}>{mkt.male ? fmtCost(mkt.male) : '—'}</td>
                         </tr>
                       )}
                       <tr style={{ borderBottom: '1px solid #eee' }}>
                         <td style={{ padding: '9px 6px', fontSize: 12 }}>自牧場 平均体重</td>
-                        <td style={{ padding: '9px 6px', textAlign: 'center' }}>{fmt(y.all.avgWeight, 'kg')}</td>
-                        <td style={{ padding: '9px 6px', textAlign: 'center', color: '#E91E63' }}>{fmt(y.female.avgWeight, 'kg')}</td>
-                        <td style={{ padding: '9px 6px', textAlign: 'center', color: '#1976D2' }}>{fmt(y.male.avgWeight, 'kg')}</td>
+                        <td style={{ padding: '9px 6px', textAlign: 'center' }}>
+                          {fmt(y.all.avgWeight, 'kg')}
+                          {salesDest === '子牛市場' && mkt.allWeight && y.all.avgWeight && <><br/><span style={{ fontWeight: 700, color: pctColor(y.all.avgWeight, mkt.allWeight) }}>{pctStr(y.all.avgWeight, mkt.allWeight)}</span></>}
+                        </td>
+                        <td style={{ padding: '9px 6px', textAlign: 'center', color: '#E91E63' }}>
+                          {fmt(y.female.avgWeight, 'kg')}
+                          {salesDest === '子牛市場' && mkt.femaleWeight && y.female.avgWeight && <><br/><span style={{ fontWeight: 700, color: pctColor(y.female.avgWeight, mkt.femaleWeight) }}>{pctStr(y.female.avgWeight, mkt.femaleWeight)}</span></>}
+                        </td>
+                        <td style={{ padding: '9px 6px', textAlign: 'center', color: '#1976D2' }}>
+                          {fmt(y.male.avgWeight, 'kg')}
+                          {salesDest === '子牛市場' && mkt.maleWeight && y.male.avgWeight && <><br/><span style={{ fontWeight: 700, color: pctColor(y.male.avgWeight, mkt.maleWeight) }}>{pctStr(y.male.avgWeight, mkt.maleWeight)}</span></>}
+                        </td>
                       </tr>
                       {salesDest === '子牛市場' && (mkt.allWeight || mkt.femaleWeight || mkt.maleWeight) && (
                         <tr style={{ borderBottom: '1px solid #eee', background: '#fafafa' }}>
                           <td style={{ padding: '9px 6px', fontSize: 12 }}>豊肥市場 平均体重
                             {mkt.months && mkt.months < 12 && <span style={{ fontSize: 10, color: '#888' }}><br/>（{mkt.months}ヶ月平均）</span>}
                           </td>
-                          <td style={{ padding: '9px 6px', textAlign: 'center' }}>
-                            {mkt.allWeight ? <>{mkt.allWeight}kg<br/><span style={{ fontWeight: 700, color: pctColor(y.all.avgWeight, mkt.allWeight) }}>{pctStr(y.all.avgWeight, mkt.allWeight)}</span></> : '—'}
-                          </td>
-                          <td style={{ padding: '9px 6px', textAlign: 'center', color: '#E91E63' }}>
-                            {mkt.femaleWeight ? <>{mkt.femaleWeight}kg<br/><span style={{ fontWeight: 700, color: pctColor(y.female.avgWeight, mkt.femaleWeight) }}>{pctStr(y.female.avgWeight, mkt.femaleWeight)}</span></> : '—'}
-                          </td>
-                          <td style={{ padding: '9px 6px', textAlign: 'center', color: '#1976D2' }}>
-                            {mkt.maleWeight ? <>{mkt.maleWeight}kg<br/><span style={{ fontWeight: 700, color: pctColor(y.male.avgWeight, mkt.maleWeight) }}>{pctStr(y.male.avgWeight, mkt.maleWeight)}</span></> : '—'}
-                          </td>
+                          <td style={{ padding: '9px 6px', textAlign: 'center' }}>{mkt.allWeight ? `${mkt.allWeight}kg` : '—'}</td>
+                          <td style={{ padding: '9px 6px', textAlign: 'center', color: '#E91E63' }}>{mkt.femaleWeight ? `${mkt.femaleWeight}kg` : '—'}</td>
+                          <td style={{ padding: '9px 6px', textAlign: 'center', color: '#1976D2' }}>{mkt.maleWeight ? `${mkt.maleWeight}kg` : '—'}</td>
                         </tr>
                       )}
                       <tr>
