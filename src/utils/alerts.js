@@ -3,7 +3,7 @@ import { differenceInDays, addDays, format } from 'date-fns';
 // 牛の妊娠期間は約285日
 const GESTATION_DAYS = 285;
 
-export function generateAlerts(cattle, breedings, pregnancyChecks, calvings) {
+export function generateAlerts(cattle, breedings, pregnancyChecks, calvings, heats = []) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const alerts = [];
@@ -27,8 +27,8 @@ export function generateAlerts(cattle, breedings, pregnancyChecks, calvings) {
       const breedingDate = new Date(latestBreeding.date);
       const daysSinceBreeding = differenceInDays(today, breedingDate);
 
-      // 人工授精後の次の発情周期（21日後 +/- 3日）
-      if (daysSinceBreeding >= 18 && daysSinceBreeding <= 24) {
+      // 人工授精後の次の発情周期（17〜25日）
+      if (daysSinceBreeding >= 17 && daysSinceBreeding <= 25) {
         const isPregnant = latestPC && new Date(latestPC.date) > breedingDate && latestPC.result === '受胎';
         if (!isPregnant) {
           alerts.push({
@@ -43,8 +43,8 @@ export function generateAlerts(cattle, breedings, pregnancyChecks, calvings) {
         }
       }
 
-      // 授精後35日で妊娠鑑定
-      if (daysSinceBreeding >= 33 && daysSinceBreeding <= 40) {
+      // 授精後35日以降 → 妊娠鑑定を記録するまで表示し続ける
+      if (daysSinceBreeding >= 33) {
         const hasRecentPC = latestPC && new Date(latestPC.date) > breedingDate;
         if (!hasRecentPC) {
           alerts.push({
@@ -60,7 +60,7 @@ export function generateAlerts(cattle, breedings, pregnancyChecks, calvings) {
       }
 
       // 授精後55-65日で雌雄判別
-      if (daysSinceBreeding >= 53 && daysSinceBreeding <= 67) {
+      if (daysSinceBreeding >= 53 && daysSinceBreeding <= 70) {
         const isPregnant = latestPC && new Date(latestPC.date) > breedingDate && latestPC.result === '受胎';
         if (isPregnant) {
           alerts.push({
@@ -75,32 +75,40 @@ export function generateAlerts(cattle, breedings, pregnancyChecks, calvings) {
         }
       }
 
-      // 分娩予定日の2週間前
+      // 分娩予定日の2週間前〜分娩を記録するまで表示し続ける
       const isPregnant = latestPC && new Date(latestPC.date) > breedingDate && latestPC.result === '受胎';
       if (isPregnant) {
         const dueDate = addDays(breedingDate, GESTATION_DAYS);
         const daysUntilDue = differenceInDays(dueDate, today);
-        if (daysUntilDue >= 0 && daysUntilDue <= 14) {
+        const hasCalvingAfterBreeding = latestCalving && new Date(latestCalving.date) > breedingDate;
+        if (daysUntilDue <= 14 && !hasCalvingAfterBreeding) {
+          const daysLabel = daysUntilDue > 0
+            ? `-${daysUntilDue}日`
+            : daysUntilDue === 0
+            ? `本日`
+            : `+${Math.abs(daysUntilDue)}日`;
+          const msg = daysUntilDue >= 0
+            ? `分娩予定日まであと${daysUntilDue}日（${format(dueDate, 'M/d')}）[${daysLabel}]`
+            : `分娩予定日を${Math.abs(daysUntilDue)}日超過（${format(dueDate, 'M/d')}）[${daysLabel}]`;
           alerts.push({
             type: 'calving_due',
             priority: 'high',
             cattleId: cow.id,
             earTag: cow.earTag,
             name: cow.name,
-            message: `分娩予定日まであと${daysUntilDue}日（${format(dueDate, 'M/d')}）`,
+            message: msg,
             date: format(dueDate, 'yyyy-MM-dd'),
           });
         }
       }
     }
 
-    // 分娩後40日経過（種付開始時期）
+    // 分娩後40日経過 → 種付けを記録するまで表示し続ける
     if (latestCalving) {
       const calvingDate = new Date(latestCalving.date);
       const daysSinceCalving = differenceInDays(today, calvingDate);
-      // Check if there's a breeding after this calving
       const hasBreedingAfterCalving = cowBreedings.some(b => new Date(b.date) > calvingDate);
-      if (daysSinceCalving >= 40 && daysSinceCalving <= 90 && !hasBreedingAfterCalving) {
+      if (daysSinceCalving >= 40 && !hasBreedingAfterCalving) {
         alerts.push({
           type: 'post_calving',
           priority: 'medium',
@@ -109,6 +117,29 @@ export function generateAlerts(cattle, breedings, pregnancyChecks, calvings) {
           name: cow.name,
           message: `分娩後${daysSinceCalving}日経過 - 種付開始可能`,
           date: format(addDays(calvingDate, 40), 'yyyy-MM-dd'),
+        });
+      }
+    }
+
+    // 次回発情予定（発情記録はあるが未授精の牛、発情後17〜25日）
+    const cowHeats = heats
+      .filter(h => h.cattleId === cow.id)
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+    const latestHeat = cowHeats[0];
+    if (latestHeat) {
+      const heatDate = new Date(latestHeat.date);
+      const daysSinceHeat = differenceInDays(today, heatDate);
+      // 発情後に種付けされていない場合のみ表示
+      const hasBreedingAfterHeat = cowBreedings.some(b => new Date(b.date) >= heatDate);
+      if (daysSinceHeat >= 17 && daysSinceHeat <= 25 && !hasBreedingAfterHeat) {
+        alerts.push({
+          type: 'next_estrus',
+          priority: 'high',
+          cattleId: cow.id,
+          earTag: cow.earTag,
+          name: cow.name,
+          message: `次回発情予定（前回発情から${daysSinceHeat}日目）`,
+          date: format(addDays(heatDate, 21), 'yyyy-MM-dd'),
         });
       }
     }

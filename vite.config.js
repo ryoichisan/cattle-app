@@ -16,7 +16,7 @@ export default defineConfig({
         theme_color: '#2E7D32',
         background_color: '#F5F5F5',
         display: 'standalone',
-        start_url: '/',
+        start_url: '/cattle-app/',
         icons: [
           {
             src: 'icon-192.svg',
@@ -34,6 +34,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,ico}'],
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -44,6 +46,7 @@ export default defineConfig({
       },
     }),
   ],
+  base: '/cattle-app/',
   root: path.resolve(__dirname),
   server: {
     host: true,

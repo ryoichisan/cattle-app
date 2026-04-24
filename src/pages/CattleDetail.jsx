@@ -19,7 +19,7 @@ export default function CattleDetail() {
     if (!c) return;
     setCow(c);
 
-    const [breedings, pcs, heats, calvings, treatments, shipments, records, miscarriages] = await Promise.all([
+    const [breedings, pcs, heats, calvings, treatments, shipments, records, miscarriages, deaths] = await Promise.all([
       db.breeding.where('cattleId').equals(cattleId).toArray(),
       db.pregnancyChecks.where('cattleId').equals(cattleId).toArray(),
       db.heat.where('cattleId').equals(cattleId).toArray(),
@@ -28,6 +28,7 @@ export default function CattleDetail() {
       db.shipment.where('cattleId').equals(cattleId).toArray(),
       db.records.where('cattleId').equals(cattleId).toArray(),
       db.miscarriage.where('cattleId').equals(cattleId).toArray(),
+      db.death.where('cattleId').equals(cattleId).toArray(),
     ]);
 
     // Reproduction status
@@ -66,14 +67,15 @@ export default function CattleDetail() {
 
     // Build timeline
     const events = [];
-    breedings.forEach(b => events.push({ date: b.date, type: 'breeding', dot: 'dot-breeding', title: `種付: ${b.bullName || b.method}`, detail: b.memo }));
-    pcs.forEach(p => events.push({ date: p.date, type: 'pregnancy', dot: 'dot-pregnancy', title: `妊娠鑑定: ${p.result}`, detail: p.memo }));
-    heats.forEach(h => events.push({ date: h.date, type: 'heat', dot: 'dot-heat', title: `発情 ${h.signs || ''}`, detail: h.memo }));
-    calvings.forEach(c => events.push({ date: c.date, type: 'calving', dot: 'dot-calving', title: `分娩: ${c.calfSex || ''} ${c.calfWeight ? c.calfWeight + 'kg' : ''}`, detail: c.memo }));
-    treatments.forEach(t => events.push({ date: t.date, type: 'treatment', dot: 'dot-treatment', title: `治療: ${t.medicine || t.diseaseName || ''}`, detail: t.memo }));
-    shipments.forEach(s => events.push({ date: s.date, type: 'shipment', dot: 'dot-shipment', title: `出荷: ${s.destination || ''}`, detail: s.memo }));
-    records.forEach(r => events.push({ date: r.date, type: 'record', dot: 'dot-record', title: `記録 ${r.weight ? r.weight + 'kg' : ''} ${r.bcs ? 'BCS:' + r.bcs : ''}`, detail: r.memo }));
-    miscarriages.forEach(m => events.push({ date: m.date, type: 'miscarriage', dot: 'dot-treatment', title: `流産 ${m.category || ''}`, detail: m.memo }));
+    breedings.forEach(b => events.push({ date: b.date, type: 'breeding', eventType: 'breeding', recordId: b.id, dot: 'dot-breeding', title: `種付: ${b.bullName || b.method}`, detail: b.memo }));
+    pcs.forEach(p => events.push({ date: p.date, type: 'pregnancy', eventType: 'pregnancyCheck', recordId: p.id, dot: 'dot-pregnancy', title: `妊娠鑑定: ${p.result}`, detail: p.memo }));
+    heats.forEach(h => events.push({ date: h.date, type: 'heat', eventType: 'heat', recordId: h.id, dot: 'dot-heat', title: `発情 ${h.signs || ''}`, detail: h.memo }));
+    calvings.forEach(c => events.push({ date: c.date, type: 'calving', eventType: 'calving', recordId: c.id, dot: 'dot-calving', title: `分娩: ${c.calfSex || ''} ${c.calfWeight ? c.calfWeight + 'kg' : ''}`, detail: c.memo }));
+    treatments.forEach(t => events.push({ date: t.date, type: 'treatment', eventType: 'treatment', recordId: t.id, dot: 'dot-treatment', title: `治療: ${t.medicine || t.diseaseName || ''}`, detail: t.memo }));
+    shipments.forEach(s => events.push({ date: s.date, type: 'shipment', eventType: 'shipment', recordId: s.id, dot: 'dot-shipment', title: `出荷: ${s.destination || ''}`, detail: s.memo }));
+    records.forEach(r => events.push({ date: r.date, type: 'record', eventType: 'record', recordId: r.id, dot: 'dot-record', title: `記録 ${r.weight ? r.weight + 'kg' : ''} ${r.bcs ? 'BCS:' + r.bcs : ''}`, detail: r.memo }));
+    miscarriages.forEach(m => events.push({ date: m.date, type: 'miscarriage', eventType: 'miscarriage', recordId: m.id, dot: 'dot-treatment', title: `流産 ${m.category || ''}`, detail: m.memo }));
+    deaths.forEach(d => events.push({ date: d.date, type: 'death', eventType: 'death', recordId: d.id, dot: 'dot-treatment', title: `死亡 ${d.reason || ''}`, detail: d.memo }));
 
     events.sort((a, b) => new Date(b.date) - new Date(a.date));
     setTimeline(events);
@@ -88,6 +90,8 @@ export default function CattleDetail() {
     { icon: '\u{1F476}', label: '分娩', type: 'calving' },
     { icon: '\u{1F48A}', label: '治療', type: 'treatment' },
     { icon: '\u{1F4DD}', label: '記録', type: 'record' },
+    { icon: '\u{1F69A}', label: '出荷', type: 'shipment' },
+    { icon: '\u{271D}', label: '死亡', type: 'death' },
   ];
 
   return (
@@ -133,28 +137,31 @@ export default function CattleDetail() {
         <div className="card">
           <div className="detail-section">
             {[
-              ['耳標', cow.earTag],
-              ['個体識別番号', cow.individualId],
-              ['名前', cow.name],
-              ['品種', cow.breed],
-              ['毛色', cow.color],
-              ['性別', cow.sex],
-              ['出生日', cow.birthDate],
-              ['出生地', cow.birthPlace],
-              ['出生時体重', cow.birthWeight ? cow.birthWeight + ' kg' : ''],
-              ['父牛', cow.father],
-              ['母の父牛', cow.motherFather],
-              ['祖母の父牛', cow.grandmotherFather],
-              ['導入元', cow.importSource],
-              ['導入価格', cow.importPrice ? `${Number(cow.importPrice).toLocaleString()} 円` : ''],
-              ['メモ', cow.memo],
-            ].filter(([, v]) => v).map(([label, value]) => (
+              ['名前', cow.earTag, true],
+              ['個体識別番号', cow.individualId, true],
+              ['出生日', cow.birthDate, true],
+              ['出生体重', cow.birthWeight, true],
+              ['母牛', cow.motherName, true],
+              ['父牛', cow.father, true],
+              ['母の父牛', cow.motherFather, true],
+              ['祖母の父牛', cow.grandmotherFather, true],
+              ['タイプ', cow.calfType, true],
+              ['出生メモ', cow.birthMemo, true],
+              ['メモ', cow.memo, true],
+            ].map(([label, value]) => (
               <div key={label} className="detail-row">
                 <span className="detail-label">{label}</span>
-                <span className="detail-value">{value}</span>
+                <span className="detail-value">{value || '—'}</span>
               </div>
             ))}
           </div>
+          <button
+            className="btn btn-outline btn-block btn-sm"
+            style={{ marginTop: 12 }}
+            onClick={() => navigate(`/event/registration/${cow.id}/edit/${cow.id}`)}
+          >
+            &#x270F; 基本情報を編集
+          </button>
         </div>
       )}
 
@@ -164,13 +171,25 @@ export default function CattleDetail() {
             <div className="empty-state">履歴がありません</div>
           ) : (
             timeline.map((ev, i) => (
-              <div key={i} className="timeline-item">
+              <div
+                key={i}
+                className="timeline-item"
+                style={{ cursor: ev.recordId ? 'pointer' : 'default' }}
+                onClick={() => {
+                  if (ev.recordId && ev.eventType) {
+                    navigate(`/event/${ev.eventType}/${cow.id}/edit/${ev.recordId}`);
+                  }
+                }}
+              >
                 <div className={`timeline-dot ${ev.dot}`} />
-                <div>
+                <div style={{ flex: 1 }}>
                   <div className="timeline-date">{ev.date}</div>
                   <div className="timeline-content">{ev.title}</div>
                   {ev.detail && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{ev.detail}</div>}
                 </div>
+                {ev.recordId && (
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)', alignSelf: 'center' }}>&#x270F;</span>
+                )}
               </div>
             ))
           )}

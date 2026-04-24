@@ -7,37 +7,71 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState({ total: 0, pregnant: 0, open: 0, postpartum: 0 });
   const [alerts, setAlerts] = useState([]);
-  const [shipped, setShipped] = useState({ calf: [], adult: [], slaughter: [], other: [] });
-  const [showShipped, setShowShipped] = useState(false);
-  const [shippedTab, setShippedTab] = useState('all');
+  const [shipped, setShipped] = useState({ calf: [], adult: [], small: [], slaughter: [], other: [] });
+  const [showShipped, setShowShipped] = useState(() => sessionStorage.getItem('dash_showShipped') === '1');
+  const [shippedTab, setShippedTab] = useState(() => sessionStorage.getItem('dash_shippedTab') || 'all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadData();
   }, []);
 
+  // 出荷済みが展開状態で戻ってきたら、その位置にスクロール
+  useEffect(() => {
+    if (!loading && showShipped) {
+      const el = document.getElementById('shipped-section');
+      if (el) setTimeout(() => el.scrollIntoView({ behavior: 'auto', block: 'start' }), 100);
+    }
+  }, [loading]);
+
   async function loadData() {
     try {
       const allCattle = await db.cattle.toArray();
       const cattleMap = {};
       allCattle.forEach(c => { cattleMap[c.id] = c; });
-      const breedingCows = allCattle.filter(c => c.type === '繁殖雌牛' || c.type === '' || !c.type);
       const breedings = await db.breeding.toArray();
       const pregnancyChecks = await db.pregnancyChecks.toArray();
       const calvings = await db.calving.toArray();
       const disposals = await db.disposal.toArray();
       const shipments = await db.shipment.toArray();
       const sales = await db.sales.toArray();
+      const deaths = await db.death.toArray();
 
       // Build sets of removed cattle
       const disposedIds = new Set(disposals.map(d => d.cattleId));
       const shippedIds = new Set(shipments.map(s => s.cattleId));
-      const removedIds = new Set([...disposedIds, ...shippedIds]);
+      const deadIds = new Set(deaths.map(d => d.cattleId));
+      const removedIds = new Set([...disposedIds, ...shippedIds, ...deadIds]);
 
-      const activeCows = breedingCows.filter(c => !removedIds.has(c.id));
+      // 子牛判定（CattleListと同ロジック）
+      const calfTagSet = new Set();
+      for (const c of calvings) {
+        const t = (c.calfEarTag || '').trim();
+        if (t) calfTagSet.add(t);
+      }
+      const bredCattleIds = new Set(breedings.map(b => b.cattleId));
+      const damCattleIds = new Set(calvings.map(c => c.cattleId));
+      const calfIdSet = new Set();
+      for (const cow of allCattle) {
+        const tag = (cow.earTag || '').trim();
+        if (!tag) continue;
+        let isCalf = false;
+        if (calfTagSet.has(tag)) isCalf = true;
+        else {
+          const num = tag.match(/^\d+/)?.[0];
+          if (num && [...calfTagSet].some(t => t.match(/^\d+/)?.[0] === num)) isCalf = true;
+        }
+        const isMeat = cow.calfType === '肉用牛';
+        if (!isCalf && !isMeat) continue;
+        if (bredCattleIds.has(cow.id) || damCattleIds.has(cow.id)) continue;
+        if (cow.calfType === '繁殖雌牛') continue;
+        calfIdSet.add(cow.id);
+      }
+
+      const activeCows = allCattle.filter(c => !removedIds.has(c.id) && !calfIdSet.has(c.id));
 
       // Build shipped cattle list by category
-      const shippedCattle = { calf: [], adult: [], slaughter: [], other: [] };
+      const shippedCattle = { calf: [], adult: [], small: [], slaughter: [], other: [] };
       for (const s of shipments) {
         const cow = cattleMap[s.cattleId];
         if (!cow) continue;
@@ -49,11 +83,13 @@ export default function Dashboard() {
           totalAmount: sale ? sale.totalAmount : '',
           salesType: sale ? sale.salesType : '',
         };
-        const dest = (s.destination || '').toLowerCase();
+        const dest = s.destination || '';
         if (dest.includes('仔牛') || dest.includes('子牛')) {
           shippedCattle.calf.push(entry);
         } else if (dest.includes('成牛')) {
           shippedCattle.adult.push(entry);
+        } else if (dest.includes('スモール')) {
+          shippedCattle.small.push(entry);
         } else if (dest.includes('屠場') || dest.includes('と場') || dest.includes('カミチク') || (sale && sale.salesType === '経産牛')) {
           shippedCattle.slaughter.push(entry);
         } else {
@@ -62,26 +98,29 @@ export default function Dashboard() {
       }
       setShipped(shippedCattle);
 
-      // Calculate stats
+      // Calculate stats (CattleListと同ロジック)
       let pregnant = 0, bred = 0, postpartum = 0;
       for (const cow of activeCows) {
         const cowBreedings = breedings.filter(b => b.cattleId === cow.id).sort((a, b) => new Date(b.date) - new Date(a.date));
         const cowPCs = pregnancyChecks.filter(p => p.cattleId === cow.id).sort((a, b) => new Date(b.date) - new Date(a.date));
         const cowCalvings = calvings.filter(c => c.cattleId === cow.id).sort((a, b) => new Date(b.date) - new Date(a.date));
-
-        const latestBreeding = cowBreedings[0];
-        const latestPC = cowPCs[0];
-
-        if (latestPC && latestBreeding && new Date(latestPC.date) >= new Date(latestBreeding.date) && latestPC.result === '受胎') {
-          pregnant++;
-        } else if (latestBreeding) {
-          const latestCalving = cowCalvings[0];
-          if (!latestCalving || new Date(latestBreeding.date) > new Date(latestCalving.date)) {
-            bred++;
-          }
-        }
+        const lb = cowBreedings[0];
+        const lp = cowPCs[0];
+        const lc = cowCalvings[0];
+        const isPregnant = lp && lb
+          && new Date(lp.date) >= new Date(lb.date)
+          && lp.result === '受胎'
+          && (!lc || new Date(lb.date) > new Date(lc.date));
+        const isKuutaiConfirmed = lb && lp
+          && new Date(lp.date) >= new Date(lb.date)
+          && lp.result !== '受胎'
+          && (!lc || new Date(lb.date) > new Date(lc.date));
+        if (isPregnant) pregnant++;
+        else if (isKuutaiConfirmed) postpartum++; // 空胎鑑定済み → 空胎にカウント
+        else if (lb && (!lc || new Date(lb.date) > new Date(lc.date))) bred++;
+        else if (lc) postpartum++;
+        // 未経産（lcもlbもない or 分娩経験なし）はカウントしない
       }
-      postpartum = activeCows.length - pregnant - bred;
 
       setStats({
         total: activeCows.length,
@@ -90,7 +129,8 @@ export default function Dashboard() {
         open: postpartum,
       });
 
-      const alertList = generateAlerts(activeCows, breedings, pregnancyChecks, calvings);
+      const heats = await db.heat.toArray();
+      const alertList = generateAlerts(activeCows, breedings, pregnancyChecks, calvings, heats);
       setAlerts(alertList);
     } catch (e) {
       console.error(e);
@@ -99,10 +139,11 @@ export default function Dashboard() {
   }
 
   const alertCategories = [
-    { type: 'pregnancy_check', icon: '\u{1F50D}', label: '妊娠鑑定', color: '#9C27B0' },
     { type: 'estrus', icon: '\u{1F525}', label: '発情周期', color: '#D32F2F' },
-    { type: 'calving_due', icon: '\u{1F476}', label: '分娩予定', color: '#2E7D32' },
+    { type: 'next_estrus', icon: '\u{1F514}', label: '次回発情予定', color: '#E91E63' },
+    { type: 'pregnancy_check', icon: '\u{1F50D}', label: '妊娠鑑定', color: '#9C27B0' },
     { type: 'sex_determination', icon: '\u{1F52C}', label: '雌雄判別', color: '#F57C00' },
+    { type: 'calving_due', icon: '\u{1F476}', label: '分娩予定', color: '#2E7D32' },
     { type: 'post_calving', icon: '\u{1F489}', label: '分娩後経過（種付開始可能）', color: '#1976D2' },
     { type: 'long_open', icon: '\u{26A0}', label: '長期不受胎牛', color: '#616161' },
   ];
@@ -158,8 +199,10 @@ export default function Dashboard() {
                 </div>
                 <div className="alert-chips">
                   {catAlerts.map((alert, i) => {
+                    // 分娩予定は [−5日] [+3日] 形式を使う
+                    const bracketMatch = alert.message.match(/\[(.+?)\]/);
                     const daysMatch = alert.message.match(/(\d+)日/);
-                    const days = daysMatch ? daysMatch[1] + '日' : '';
+                    const days = bracketMatch ? bracketMatch[1] : (daysMatch ? daysMatch[1] + '日' : '');
                     return (
                       <span
                         key={i}
@@ -179,29 +222,30 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="card">
-        <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => setShowShipped(!showShipped)}>
-          &#x1F69A; 出荷済み ({shipped.calf.length + shipped.adult.length + shipped.slaughter.length + shipped.other.length}頭)
+      <div className="card" id="shipped-section">
+        <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => { const v = !showShipped; setShowShipped(v); sessionStorage.setItem('dash_showShipped', v ? '1' : '0'); }}>
+          &#x1F69A; 出荷済み ({shipped.calf.length + shipped.adult.length + shipped.small.length + shipped.slaughter.length + shipped.other.length}頭)
           <span style={{ marginLeft: 'auto', fontSize: 14 }}>{showShipped ? '▲' : '▼'}</span>
         </div>
         {showShipped && (
           <div>
             <div className="tabs">
               {[
-                ['all', `全て(${shipped.calf.length + shipped.adult.length + shipped.slaughter.length + shipped.other.length})`],
+                ['all', `全て(${shipped.calf.length + shipped.adult.length + shipped.small.length + shipped.slaughter.length + shipped.other.length})`],
                 ['calf', `子牛市場(${shipped.calf.length})`],
                 ['adult', `成牛市場(${shipped.adult.length})`],
+                ['small', `スモール市場(${shipped.small.length})`],
                 ['slaughter', `屠場(${shipped.slaughter.length})`],
                 ['other', `その他(${shipped.other.length})`],
               ].map(([key, label]) => (
-                <button key={key} className={shippedTab === key ? 'active' : ''} onClick={() => setShippedTab(key)}>
+                <button key={key} className={shippedTab === key ? 'active' : ''} onClick={() => { setShippedTab(key); sessionStorage.setItem('dash_shippedTab', key); }}>
                   {label}
                 </button>
               ))}
             </div>
             {(() => {
               const list = shippedTab === 'all'
-                ? [...shipped.calf, ...shipped.adult, ...shipped.slaughter, ...shipped.other]
+                ? [...shipped.calf, ...shipped.adult, ...shipped.small, ...shipped.slaughter, ...shipped.other]
                 : shipped[shippedTab];
               if (list.length === 0) return <div className="empty-state">該当する牛はいません</div>;
               return list.sort((a, b) => new Date(b.date) - new Date(a.date)).map((s, i) => (
@@ -215,6 +259,7 @@ export default function Dashboard() {
                       {s.date} / {s.destination || '出荷先不明'}
                       {s.weight && ` / ${s.weight}kg`}
                       {s.totalAmount && ` / ${Number(s.totalAmount).toLocaleString()}円`}
+                      {s.buyer && ` / ${s.buyer}`}
                     </div>
                   </div>
                   <span className="cattle-status" style={{ background: '#EEEEEE', color: '#616161' }}>出荷済</span>

@@ -1,0 +1,51 @@
+name: 過去データ（2022〜2024年）体重一括抽出
+
+on:
+  workflow_dispatch:
+    # GitHub の Actions タブから手動実行するためのみ
+
+jobs:
+  extract-historical:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Node.js セットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 依存パッケージをインストール
+        run: npm ci
+
+      - name: 過去データを一括抽出（2022〜2024年）
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node scripts/extract-historical.mjs
+
+      - name: 変更をコミット
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/market-data.json
+          if git diff --staged --quiet; then
+            echo "データに変更なし。"
+          else
+            git commit -m "🐄 2022〜2024年 豊肥子牛市場 体重データ追加"
+            git push origin HEAD
+          fi
+
+      - name: アプリをビルド
+        run: npm run build
+
+      - name: GitHub Pages にデプロイ
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: dist
+          branch: gh-pages
+          clean: true

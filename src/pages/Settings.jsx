@@ -2,8 +2,11 @@ import { useState } from 'react';
 import { db } from '../db/database';
 import { importAllCSVFiles } from '../utils/csvImport';
 import { exportAllData, importAllData } from '../utils/dataSync';
+import { pushAll, pullAll } from '../utils/sync';
+import { useNavigate } from 'react-router-dom';
 
 export default function Settings() {
+  const navigate = useNavigate();
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState(null);
   const [counts, setCounts] = useState(null);
@@ -49,6 +52,16 @@ export default function Settings() {
 
   return (
     <div>
+      <div className="card">
+        <div className="card-header">&#x1F69A; 出荷の一括入力</div>
+        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>
+          家畜市場の伝票を見ながら複数頭の出荷記録をまとめて入力できます。
+        </p>
+        <button className="btn btn-primary btn-block" onClick={() => navigate('/shipment-batch')}>
+          一括入力画面を開く
+        </button>
+      </div>
+
       <div className="card">
         <div className="card-header">&#x1F4C1; CSVデータインポート</div>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>
@@ -103,7 +116,49 @@ export default function Settings() {
       )}
 
       <div className="card">
-        <div className="card-header">&#x1F504; データの書き出し・読み込み</div>
+        <div className="card-header">&#x2601; クラウド自動同期</div>
+        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>
+          パソコンとスマホで自動的にデータが同期されます。<br />
+          通常は自動で行われますが、すぐに同期したい時は下のボタンを押してください。
+        </p>
+        <button
+          className="btn btn-primary btn-block"
+          style={{ marginBottom: 8 }}
+          onClick={async () => {
+            try {
+              await pushAll();
+              setSyncMsg({ type: 'success', text: 'クラウドへ送信しました。' });
+            } catch (e) {
+              setSyncMsg({ type: 'error', text: 'エラー: ' + e.message });
+            }
+          }}
+        >
+          &#x2601; この端末のデータをクラウドへ送る
+        </button>
+        <button
+          className="btn btn-outline btn-block"
+          onClick={async () => {
+            if (!confirm('クラウドのデータでこの端末を上書きします。よろしいですか？')) return;
+            try {
+              await pullAll();
+              setSyncMsg({ type: 'success', text: 'クラウドから取得しました。' });
+              await loadCounts();
+            } catch (e) {
+              setSyncMsg({ type: 'error', text: 'エラー: ' + e.message });
+            }
+          }}
+        >
+          &#x2B07; クラウドから取得する
+        </button>
+        {localStorage.getItem('lastSyncAt') && (
+          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
+            最終同期: {new Date(Number(localStorage.getItem('lastSyncAt'))).toLocaleString('ja-JP')}
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <div className="card-header">&#x1F504; データの書き出し・読み込み（手動バックアップ）</div>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>
           パソコンとスマホでデータを共有できます。<br />
           ① 片方の端末で「データを書き出す」<br />

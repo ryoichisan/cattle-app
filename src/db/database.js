@@ -17,6 +17,10 @@ db.version(1).stores({
   movement: '++id, cattleId, date, destination, memo',
 });
 
+db.version(2).stores({
+  death: '++id, cattleId, date, reason, memo',
+});
+
 // Helper to find cattle by earTag
 export async function findCattleByEarTag(earTag) {
   return db.cattle.where('earTag').equals(earTag).first();
